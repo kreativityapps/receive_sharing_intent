@@ -9,6 +9,14 @@ import 'src/receive_sharing_intent_mobile.dart';
 
 part 'src/data/shared_media_file.dart';
 
+/// A non-empty incoming share contained no items with a usable path.
+class UnreadableSharedMediaException implements Exception {
+  const UnreadableSharedMediaException();
+
+  @override
+  String toString() => 'The incoming share contained no readable items.';
+}
+
 abstract class ReceiveSharingIntent extends PlatformInterface {
   ReceiveSharingIntent() : super(token: _token);
 
@@ -27,10 +35,11 @@ abstract class ReceiveSharingIntent extends PlatformInterface {
     _instance = instance;
   }
 
-  /// Returns a [Future], which completes to one of the following:
+  /// Returns the readable items from the initial share, or an empty list if
+  /// there was no share.
   ///
-  ///   * the initially stored media uri (possibly null), on successful invocation;
-  ///   * a [PlatformException], if the invocation failed in the platform plugin.
+  /// Throws [UnreadableSharedMediaException] if a non-empty share has no
+  /// readable items, or [PlatformException] if the platform invocation fails.
   ///
   /// NOTE. The returned media on iOS (iOS ONLY) is already copied to a temp folder.
   /// So, you need to delete the file after you finish using it
@@ -40,12 +49,9 @@ abstract class ReceiveSharingIntent extends PlatformInterface {
 
   /// Sets up a broadcast stream for receiving incoming media share change events.
   ///
-  /// Returns a broadcast [Stream] which emits events to listeners as follows:
-  ///
-  ///   * a decoded data ([List]) event (possibly null) for each successful
-  ///   event received from the platform plugin;
-  ///   * an error event containing a [PlatformException] for each error event
-  ///   received from the platform plugin.
+  /// Each data event contains the readable items from the share. A non-empty
+  /// share with no readable items emits an [UnreadableSharedMediaException].
+  /// Platform errors are emitted as [PlatformException]s.
   ///
   /// Errors occurring during stream activation or deactivation are reported
   /// through the `FlutterError` facility. Stream activation happens only when

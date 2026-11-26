@@ -18,34 +18,41 @@ class ReceiveSharingIntentMobile extends ReceiveSharingIntent {
 
   @override
   Future<List<SharedMediaFile>> getInitialMedia() async {
-    final json = await mChannel.invokeMethod('getInitialMedia');
-    if (json == null) return [];
-    final encoded = jsonDecode(json);
-    return encoded
-        .map<SharedMediaFile>((file) => SharedMediaFile.fromMap(file))
-        .toList();
+    final payload = await mChannel.invokeMethod<String>('getInitialMedia');
+    return _decodeSharedMedia(payload);
   }
 
   @override
   Stream<List<SharedMediaFile>> getMediaStream() {
-    if (_streamMedia == null) {
-      final stream = eChannelMedia.receiveBroadcastStream().cast<String?>();
-      _streamMedia = stream.transform<List<SharedMediaFile>>(
-        StreamTransformer<String?, List<SharedMediaFile>>.fromHandlers(
-          handleData: (data, sink) {
-            if (data == null) {
-              sink.add(<SharedMediaFile>[]);
-            } else {
-              final encoded = jsonDecode(data);
-              sink.add(encoded
-                  .map<SharedMediaFile>((file) => SharedMediaFile.fromMap(file))
-                  .toList());
-            }
-          },
-        ),
-      );
+    return _streamMedia ??= eChannelMedia
+        .receiveBroadcastStream()
+        .cast<String?>()
+        .map(_decodeSharedMedia);
+  }
+
+  static List<SharedMediaFile> _decodeSharedMedia(String? payload) {
+    if (payload == null) return [];
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(payload);
+    } on FormatException {
+      throw const FormatException('Invalid shared media response');
     }
-    return _streamMedia!;
+    if (decoded is! List<Object?>) {
+      throw const FormatException('Invalid shared media response');
+    }
+
+    final files = <SharedMediaFile>[];
+    for (final item in decoded) {
+      if (item is! Map<String, dynamic>) continue;
+      final path = item['path'];
+      if (path is! String || path.isEmpty) continue;
+      files.add(SharedMediaFile.fromMap(item));
+    }
+    if (decoded.isNotEmpty && files.isEmpty) {
+      throw const UnreadableSharedMediaException();
+    }
+    return files;
   }
 
   @override
